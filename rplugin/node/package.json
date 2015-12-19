@@ -1,0 +1,19 @@
+{
+  "name": "neovim-eslint",
+  "version": "1.0.0",
+  "description": "run eslint in neovim",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "neovim",
+    "eslint"
+  ],
+  "author": "dewilhelm@gmail.com",
+  "license": "MIT",
+  "dependencies": {
+    "eslint": "^1.10.3",
+    "espree": "^2.2.5"
+  }
+}

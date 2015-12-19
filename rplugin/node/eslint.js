@@ -7,13 +7,16 @@ var espree = require('espree');
 
 var eslintCLI = new CLIEngine({});
 
+var DEBUG = false;
+
 //default config
 var config = {
     ecmaFeatures: {}
 };
 
 function _debug() {
-    debug.apply(null, arguments);
+    if(DEBUG)
+        debug.apply(null, arguments);
 } 
 
 function isModule(js) {

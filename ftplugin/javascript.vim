@@ -10,6 +10,8 @@ let b:did_eslint_ftplugin = 1
 
 let b:lint_error_syn_groups = []
 
+let b:lint_errors = []
+
 highlight LintError      guibg=Red ctermbg=DarkRed guifg=NONE ctermfg=NONE
 
 setlocal errorformat=%f:%l:%c:%m  
@@ -17,6 +19,23 @@ setlocal errorformat=%f:%l:%c:%m
 "parse functions
 function! Strip(input_string)
     return substitute(a:input_string, '^\s*\(.\{-}\)\s*$', '\1', '')
+endfunction
+
+function! GetPosFromOffset(offset)
+    "normalize byte count for Vim (first byte is 1 in Vim)
+    let offset = a:offset + 1
+    if offset < 0
+        call Warn('offset cannot be less than 0: ' . string(offset))
+    endif
+    let line = byte2line(offset)
+    let line_start_offset = line2byte(line)
+    "first col is 1 in Vim
+    let col = (offset - line_start_offset) + 1
+    let pos = [line, col]
+    "if !IsPos(pos)
+    "Warn('invalid pos result in GetPosFromOffset()' . string(pos))
+    "endif
+    return pos
 endfunction
 
 function! GetBufferText()
@@ -86,8 +105,46 @@ function! RemoveLintHighlighting()
     setf javascript
 endfunction
 
+function! FixLintError(fix) 
+    
+    let range = a:fix.range
+    let fixtext = a:fix.text
+    let range_start = GetPosFromOffset(range[0])
+
+    "if start and end are the same -- simply insert text
+    if (range[1] == range[0]) 
+        "insert text after range pos
+        let range_end = range_start
+        let linetext = getline(range_start[0])
+        "echom "linetext:" . linetext
+        let newtext = strpart(linetext, 0, range_start[1]) . fixtext . strpart(linetext, range_start[1])
+        call setline(range_start[0], newtext)
+    else
+        "TODO
+        let range_end = GetPosFromOffset(range[1])
+    endif
+
+endfunction
+
+function! FixLintErrors()
+
+    "echom 'FixLintErrors'
+    "jump back out of QuickFix window if in it
+    if &ft == 'qf'
+        lcl
+    endif
+    for msg in b:lint_errors
+        if has_key(msg, 'fix')
+            call FixLintError(msg.fix)
+        endif
+    endfor
+    "run lint again
+    call Eslint()
+
+endfunction
+
 function! ShowEslintOutput(result)
-    "echo a:result
+    "echom 'ShowEslintOutput'
     let true = 1
     let false = 0
     let result = eval(a:result)
@@ -99,14 +156,17 @@ function! ShowEslintOutput(result)
         call RemoveLintHighlighting()
     endif
 
+    let b:lint_errors = result.messages
+    "echom 'b:lint_errors' . string(b:lint_errors)
+
     for msg in result.messages
+
         let b:num_errors = b:num_errors + 1
-        "echom msg
-        "if (msg.severity == 2) 
-            call HighlightError(b:num_errors, msg.line, msg.column)
-            
-        "endif
+
+        call HighlightError(b:num_errors, msg.line, msg.column)
+
         call add(errors, filename . ":" . msg.line . ":" . msg.column . ":" . msg.message)
+
     endfor
 
     "ensure syntax highlighting is fully applied
@@ -115,12 +175,14 @@ function! ShowEslintOutput(result)
     "populate local list
     if len(errors)
         lex errors
-        lop
+        "lop
     else
+        lex ""
         lcl
     endif
 
 endfunction
+
 
 function! AddAutoCmds()
     try
@@ -148,5 +210,12 @@ function! Eslint()
 endfunction
 
 command! Eslint call Eslint()
+command! FixLint call FixLintErrors()
 
 call AddAutoCmds()
+
+if !hasmapto('<Plug>FixLint')
+    nnoremap <buffer> <silent> <localleader>f :FixLint<CR>
+endif
+
+

@@ -72,7 +72,7 @@ function getLint(input_js) {
 function getBufferText(nv) {
 
     //var start = (new Date()).getTime();
-    nv.callFunction('GetBufferText', [], function (err, res) {
+    nv.callFunction('ESLint_GetBufferText',[], function (err, res) {
 
         var messages = [];
 

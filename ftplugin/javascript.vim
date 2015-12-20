@@ -3,25 +3,32 @@
 "Author: David Wilhelm <dewilhelm@gmail.com>
 "
 " Only do this when not done yet for this buffer
-if exists("b:did_eslint_ftplugin")
+if exists("b:did_eslint_ftplugin") || g:nv_eslint_disabled
   finish
 endif
+
 let b:did_eslint_ftplugin = 1
 
 let b:lint_error_syn_groups = []
 
 let b:lint_errors = []
+let b:num_errors = 0
 
+"default hi-group for lint errors
 highlight LintError      guibg=Red ctermbg=DarkRed guifg=NONE ctermfg=NONE
+
+if exists("g:nv_eslint_error_higroup")
+    let s:nv_eslint_error_higroup = "LintError"
+endif
 
 setlocal errorformat=%f:%l:%c:%m  
 
 "parse functions
-function! Strip(input_string)
+function! s:Strip(input_string)
     return substitute(a:input_string, '^\s*\(.\{-}\)\s*$', '\1', '')
 endfunction
 
-function! GetPosFromOffset(offset)
+function! s:GetPosFromOffset(offset)
     "normalize byte count for Vim (first byte is 1 in Vim)
     let offset = a:offset + 1
     if offset < 0
@@ -38,7 +45,7 @@ function! GetPosFromOffset(offset)
     return pos
 endfunction
 
-function! GetBufferText()
+function! ESLint_GetBufferText()
 
     let buflines = getline(1, '$')
     let buftext = ""
@@ -67,7 +74,7 @@ function! GetBufferText()
     endif
 
     "noop if empty string
-    if Strip(buftext) == ''
+    if s:Strip(buftext) == ''
         return ""
     endif
 
@@ -75,7 +82,7 @@ function! GetBufferText()
 
 endfunction
  
-function! HighlightRegion(syn_group, hi_group, start_line, end_line, start_col, end_col)
+function! s:HighlightRegion(syn_group, hi_group, start_line, end_line, start_col, end_col)
 
     let cmd = "syn region " . a:syn_group . " start='\\%" . a:start_line ."l\\%". a:start_col .
                 \"c' end='\\%" . a:end_line  . "l\\%" . a:end_col .
@@ -87,29 +94,33 @@ function! HighlightRegion(syn_group, hi_group, start_line, end_line, start_col, 
 
 endfunction
 
-function! HighlightError(errnum, line, col)
+function! s:HighlightError(errnum, line, col)
+    "echom "HighlightError(" . a:errnum . "," . a:line . "," . a:col .")"
     
     let syn_group = "LintError_" . a:errnum . "_line"
 
-    call HighlightRegion(syn_group, 'Error', a:line, a:line, a:col - 1, a:col)
+    call s:HighlightRegion(syn_group, 'Error', a:line, a:line, a:col - 1, a:col)
 
-    exe 'hi link ' . syn_group . ' LintError'
+    exe 'hi link ' . syn_group . ' ' . s:nv_eslint_error_higroup
 
 endfunction
 
-let b:num_errors = 0
 
-function! RemoveLintHighlighting()
+function! s:RemoveLintHighlighting()
     let b:lint_error_syn_groups = []
-    syn clear
-    setf javascript
+    "if jscc is installed, don't clear syntax, as it will be cleared by jscc
+    "which takes longer and will 'render' after this plugin
+    if !b:did_jscc_ftplugin
+        syn clear
+        setf javascript
+    endif
 endfunction
 
-function! FixLintError(fix) 
+function! s:FixLintError(fix) 
     
     let range = a:fix.range
     let fixtext = a:fix.text
-    let range_start = GetPosFromOffset(range[0])
+    let range_start = s:GetPosFromOffset(range[0])
 
     "if start and end are the same -- simply insert text
     if (range[1] == range[0]) 
@@ -121,12 +132,12 @@ function! FixLintError(fix)
         call setline(range_start[0], newtext)
     else
         "TODO
-        let range_end = GetPosFromOffset(range[1])
+        let range_end = s:GetPosFromOffset(range[1])
     endif
 
 endfunction
 
-function! FixLintErrors()
+function! s:FixLintErrors()
 
     "echom 'FixLintErrors'
     "jump back out of QuickFix window if in it
@@ -135,7 +146,7 @@ function! FixLintErrors()
     endif
     for msg in b:lint_errors
         if has_key(msg, 'fix')
-            call FixLintError(msg.fix)
+            call s:FixLintError(msg.fix)
         endif
     endfor
     "run lint again
@@ -143,27 +154,16 @@ function! FixLintErrors()
 
 endfunction
 
-function! ShowEslintOutput(result)
-    "echom 'ShowEslintOutput'
-    let true = 1
-    let false = 0
-    let result = eval(a:result)
+"global --called by javascript-context-colors
+function! ShowEslintErrorHighlighting()
+    "echom "ShowEslintErrorHighlighting()"
+
     let b:num_errors = 0
-    let errors = []
-    let filename = expand("%")
-
-    if len(b:lint_error_syn_groups)
-        call RemoveLintHighlighting()
-    endif
-
-    let b:lint_errors = result.messages
-    "echom 'b:lint_errors' . string(b:lint_errors)
-
-    for msg in result.messages
+    for msg in b:lint_errors
 
         let b:num_errors = b:num_errors + 1
 
-        call HighlightError(b:num_errors, msg.line, msg.column)
+        call s:HighlightError(b:num_errors, msg.line, msg.column)
 
         call add(errors, filename . ":" . msg.line . ":" . msg.column . ":" . msg.message)
 
@@ -171,11 +171,33 @@ function! ShowEslintOutput(result)
 
     "ensure syntax highlighting is fully applied
     syntax sync fromstart
+endfunction
+
+"global function -- called by node host
+function! ShowEslintOutput(result)
+    "echom 'ShowEslintOutput'
+    let true = 1
+    let false = 0
+    let result = eval(a:result)
+    let errors = []
+    let filename = expand("%")
+
+    if len(b:lint_error_syn_groups)
+        call s:RemoveLintHighlighting()
+    endif
+
+    let b:lint_errors = result.messages
+    "skip highlighting if jscc is installed
+    "jscc will call this function
+    "if it finds b:lint_errors
+    if !b:did_jscc_ftplugin
+        call ShowEslintErrorHighlighting()
+    endif
 
     "populate local list
     if len(errors)
         lex errors
-        "lop
+        lop
     else
         lex ""
         lcl
@@ -184,7 +206,7 @@ function! ShowEslintOutput(result)
 endfunction
 
 
-function! AddAutoCmds()
+function! s:AddAutoCmds()
     try
         augroup EslintAug
             "remove if added previously, but only in this buffer
@@ -209,10 +231,15 @@ function! Eslint()
     doautocmd User eslint.lint
 endfunction
 
-command! Eslint call Eslint()
-command! FixLint call FixLintErrors()
+if !exists(":Eslint")
+    command! Eslint :call Eslint()
+endif
 
-call AddAutoCmds()
+if !exists(":FixLint")
+    command! FixLint :call s:FixLintErrors()
+endif
+
+call s:AddAutoCmds()
 
 if !hasmapto('<Plug>FixLint')
     nnoremap <buffer> <silent> <localleader>f :FixLint<CR>

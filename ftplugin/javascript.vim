@@ -12,7 +12,7 @@ let b:did_eslint_ftplugin = 1
 let b:lint_error_syn_groups = []
 
 let b:lint_errors = []
-let b:num_errors = 0
+let b:error_messages = []
 
 "default hi-group for lint errors
 highlight LintError      guibg=Red ctermbg=DarkRed guifg=NONE ctermfg=NONE
@@ -158,14 +158,12 @@ endfunction
 function! ShowEslintErrorHighlighting()
     "echom "ShowEslintErrorHighlighting()"
 
-    let b:num_errors = 0
+    let b:error_messages = []
+    let errcount = 0;
+
     for msg in b:lint_errors
 
-        let b:num_errors = b:num_errors + 1
-
-        call s:HighlightError(b:num_errors, msg.line, msg.column)
-
-        call add(errors, filename . ":" . msg.line . ":" . msg.column . ":" . msg.message)
+        call s:HighlightError(++errcount, msg.line, msg.column)
 
     endfor
 
@@ -175,11 +173,11 @@ endfunction
 
 "global function -- called by node host
 function! ShowEslintOutput(result)
-    "echom 'ShowEslintOutput'
+    echom 'ShowEslintOutput'
     let true = 1
     let false = 0
     let result = eval(a:result)
-    let errors = []
+    let error_messages = []
     let filename = expand("%")
 
     if len(b:lint_error_syn_groups)
@@ -187,6 +185,13 @@ function! ShowEslintOutput(result)
     endif
 
     let b:lint_errors = result.messages
+
+    for msg in b:lint_errors
+
+        call add(error_messages, filename . ":" . msg.line . ":" . msg.column . ":" . msg.message)
+
+    endfor
+
     "skip highlighting if jscc is installed
     "jscc will call this function
     "if it finds b:lint_errors
@@ -195,8 +200,8 @@ function! ShowEslintOutput(result)
     endif
 
     "populate local list
-    if len(errors)
-        lex errors
+    if len(error_messages)
+        lex error_messages
         lop
     else
         lex ""

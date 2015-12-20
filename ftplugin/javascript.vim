@@ -17,8 +17,8 @@ let b:error_messages = []
 "default hi-group for lint errors
 highlight LintError      guibg=Red ctermbg=DarkRed guifg=NONE ctermfg=NONE
 
-if exists("g:nv_eslint_error_higroup")
-    let s:nv_eslint_error_higroup = "LintError"
+if !exists("g:nv_eslint_error_higroup")
+    let g:nv_eslint_error_higroup = "LintError"
 endif
 
 setlocal errorformat=%f:%l:%c:%m  
@@ -101,7 +101,7 @@ function! s:HighlightError(errnum, line, col)
 
     call s:HighlightRegion(syn_group, 'Error', a:line, a:line, a:col - 1, a:col)
 
-    exe 'hi link ' . syn_group . ' ' . s:nv_eslint_error_higroup
+    exe 'hi link ' . syn_group . ' ' . g:nv_eslint_error_higroup
 
 endfunction
 
@@ -156,13 +156,14 @@ endfunction
 
 "global --called by javascript-context-colors
 function! ShowEslintErrorHighlighting()
-    "echom "ShowEslintErrorHighlighting()"
+    echom "ShowEslintErrorHighlighting()"
 
     let b:error_messages = []
-    let errcount = 0;
+    let errcount = 0
 
     for msg in b:lint_errors
 
+        let errcount += 1
         call s:HighlightError(++errcount, msg.line, msg.column)
 
     endfor
@@ -191,12 +192,7 @@ function! ShowEslintOutput(result)
 
     endfor
 
-    "skip highlighting if jscc is installed
-    "jscc will call this function
-    "if it finds b:lint_errors
-    if !b:did_jscc_ftplugin
-        call ShowEslintErrorHighlighting()
-    endif
+    call ShowEslintErrorHighlighting()
 
     "populate local list
     if len(error_messages)

@@ -173,7 +173,6 @@ endfunction
 
 "global function -- called by node host
 function! ShowEslintOutput(result)
-    echom 'ShowEslintOutput'
     let true = 1
     let false = 0
     let result = eval(a:result)

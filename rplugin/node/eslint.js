@@ -87,8 +87,8 @@ function getBufferText(nv) {
 
 }
 
-plugin.autocmdSync('BufRead', {
-    pattern: '*.js',
+plugin.autocmdSync('FileType', {
+    pattern: 'javascript',
     eval: 'expand("%:p")'
 }, function (nvim, filepath) {
     getConfig(filepath);

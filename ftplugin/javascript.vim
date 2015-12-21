@@ -123,6 +123,9 @@ function! s:FixLintError(fix)
     let fixtext = a:fix.text
     let range_start = s:GetPosFromOffset(range[0])
 
+
+    "echom "" . string(range[0]) . ":" . string(range[1]) . "->" . fixtext
+
     "if start and end are the same -- simply insert text
     if (range[1] == range[0]) 
         "insert text after range pos
@@ -132,8 +135,15 @@ function! s:FixLintError(fix)
         let newtext = strpart(linetext, 0, range_start[1]) . fixtext . strpart(linetext, range_start[1])
         call setline(range_start[0], newtext)
     else
-        "TODO
         let range_end = s:GetPosFromOffset(range[1])
+        if range[1] > range[0]
+            "if on same line
+            if range_start[0] == range_end[0]
+                let linetext = getline(range_start[0])
+                let newtext = strpart(linetext, 0, range_start[1] - 1) . fixtext . strpart(linetext, range_end[1] - 1)
+                call setline(range_start[0], newtext)
+            endif
+        endif
     endif
 
 endfunction
@@ -159,18 +169,18 @@ endfunction
 function! ShowEslintErrorHighlighting()
     "echom "ShowEslintErrorHighlighting()"
 
-    let b:error_messages = []
-    let errcount = 0
+    "let b:error_messages = []
+    "let errcount = 0
 
-    for msg in b:lint_errors
+    "for msg in b:lint_errors
 
-        let errcount += 1
-        call s:HighlightError(++errcount, msg.line, msg.column)
+        "let errcount += 1
+        "call s:HighlightError(++errcount, msg.line, msg.column)
 
-    endfor
+    "endfor
 
     "ensure syntax highlighting is fully applied
-    syntax sync fromstart
+    "syntax sync fromstart
 endfunction
 
 "global function -- called by node host
@@ -198,7 +208,7 @@ function! ShowEslintOutput(result)
 
     "populate local list
     if len(error_messages)
-        lex error_messages
+        lex! error_messages
         lop
     else
         lex ""
@@ -212,8 +222,10 @@ function! s:AddAutoCmds()
     try
         augroup EslintAug
             "remove if added previously, but only in this buffer
-            au! InsertLeave,TextChanged <buffer> 
-            au! InsertLeave,TextChanged <buffer> :Eslint
+            "au! InsertLeave,TextChanged <buffer> 
+            "au! InsertLeave,TextChanged <buffer> :Eslint
+            au! BufWrite <buffer> 
+            au! BufWrite <buffer> :Eslint
         augroup END
 
     "if < vim 7.4 TextChanged events are not
@@ -222,8 +234,10 @@ function! s:AddAutoCmds()
 
             "use different events to trigger update in Vim < 7.4
             augroup EslintAug
-                au! InsertLeave <buffer> 
-                au! InsertLeave <buffer> :Eslint
+                "au! InsertLeave <buffer> 
+                "au! InsertLeave <buffer> :Eslint
+                au! BufWrite <buffer> 
+                au! BufWrite <buffer> :Eslint
             augroup END
 
     endtry

@@ -3,7 +3,7 @@
 "Author: David Wilhelm <dewilhelm@gmail.com>
 "
 " Only do this when not done yet for this buffer
-if exists("b:did_eslint_ftplugin") || g:nv_eslint_disabled
+if exists("b:did_eslint_ftplugin")
   finish
 endif
 

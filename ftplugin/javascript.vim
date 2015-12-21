@@ -83,7 +83,7 @@ function! ESLint_GetBufferText()
 endfunction
  
 function! s:HighlightRegion(syn_group, hi_group, start_line, end_line, start_col, end_col)
-
+    "echom "s:HighlightRegion(" . a:syn_group . "," . a:hi_group . "," . a:start_line . "," . a:end_line ."," . a:start_col . "," . a:end_col . ")"
     let cmd = "syn region " . a:syn_group . " start='\\%" . a:start_line ."l\\%". a:start_col .
                 \"c' end='\\%" . a:end_line  . "l\\%" . a:end_col .
                 \"c' containedin=ALL"
@@ -107,13 +107,14 @@ endfunction
 
 
 function! s:RemoveLintHighlighting()
+    "echom "removing highlights"
     let b:lint_error_syn_groups = []
     "if jscc is installed, don't clear syntax, as it will be cleared by jscc
     "which takes longer and will 'render' after this plugin
-    if !b:did_jscc_ftplugin
-        syn clear
-        setf javascript
-    endif
+    "if !b:did_jscc_ftplugin
+    "syn clear
+    "setf javascript
+    "endif
 endfunction
 
 function! s:FixLintError(fix) 
@@ -156,7 +157,7 @@ endfunction
 
 "global --called by javascript-context-colors
 function! ShowEslintErrorHighlighting()
-    echom "ShowEslintErrorHighlighting()"
+    "echom "ShowEslintErrorHighlighting()"
 
     let b:error_messages = []
     let errcount = 0
@@ -185,6 +186,7 @@ function! ShowEslintOutput(result)
     endif
 
     let b:lint_errors = result.messages
+    "echom "num errors:" . len(b:lint_errors)
 
     for msg in b:lint_errors
 
@@ -192,7 +194,7 @@ function! ShowEslintOutput(result)
 
     endfor
 
-    call ShowEslintErrorHighlighting()
+    "call ShowEslintErrorHighlighting()
 
     "populate local list
     if len(error_messages)

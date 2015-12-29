@@ -9,10 +9,9 @@ endif
 
 let b:did_eslint_ftplugin = 1
 
-let b:lint_error_syn_groups = []
-
 let b:lint_errors = []
 let b:error_messages = []
+let b:matches = []
 
 "default hi-group for lint errors
 highlight LintError      guibg=Red ctermbg=DarkRed guifg=NONE ctermfg=NONE
@@ -82,38 +81,11 @@ function! ESLint_GetBufferText()
 
 endfunction
  
-function! s:HighlightRegion(syn_group, hi_group, start_line, end_line, start_col, end_col)
-
-    let cmd = "syn region " . a:syn_group . " start='\\%" . a:start_line ."l\\%". a:start_col .
-                \"c' end='\\%" . a:end_line  . "l\\%" . a:end_col .
-                \"c' containedin=ALL"
-    "echom cmd
-    exe cmd
-    exe 'hi link ' . a:syn_group . ' ' . a:hi_group
-    call add(b:lint_error_syn_groups, a:syn_group)
-
-endfunction
-
-function! s:HighlightError(errnum, line, col)
-    "echom "HighlightError(" . a:errnum . "," . a:line . "," . a:col .")"
-    
-    let syn_group = "LintError_" . a:errnum . "_line"
-
-    call s:HighlightRegion(syn_group, 'Error', a:line, a:line, a:col - 1, a:col)
-
-    exe 'hi link ' . syn_group . ' ' . g:nv_eslint_error_higroup
-
-endfunction
-
-
 function! s:RemoveLintHighlighting()
-    let b:lint_error_syn_groups = []
-    "if jscc is installed, don't clear syntax, as it will be cleared by jscc
-    "which takes longer and will 'render' after this plugin
-    if !b:did_jscc_ftplugin
-        syn clear
-        setf javascript
-    endif
+    for matchId in b:matches
+        call matchdelete(matchId)
+    endfor
+    let b:matches = []
 endfunction
 
 function! s:FixLintError(fix) 
@@ -154,24 +126,6 @@ function! s:FixLintErrors()
 
 endfunction
 
-"global --called by javascript-context-colors
-function! ShowEslintErrorHighlighting()
-    echom "ShowEslintErrorHighlighting()"
-
-    let b:error_messages = []
-    let errcount = 0
-
-    for msg in b:lint_errors
-
-        let errcount += 1
-        call s:HighlightError(++errcount, msg.line, msg.column)
-
-    endfor
-
-    "ensure syntax highlighting is fully applied
-    syntax sync fromstart
-endfunction
-
 "global function -- called by node host
 function! ShowEslintOutput(result)
     let true = 1
@@ -180,19 +134,19 @@ function! ShowEslintOutput(result)
     let error_messages = []
     let filename = expand("%")
 
-    if len(b:lint_error_syn_groups)
-        call s:RemoveLintHighlighting()
-    endif
-
     let b:lint_errors = result.messages
 
+    call s:RemoveLintHighlighting()
+
     for msg in b:lint_errors
+        let line = msg.line
+        let col = msg.column
 
-        call add(error_messages, filename . ":" . msg.line . ":" . msg.column . ":" . msg.message)
+        call add(error_messages, filename . ":" . line . ":" . col . ":" . msg.message)
 
+        let id =  matchadd('LintError', '\%' . line . 'l\%' . col . 'c')
+        call add(b:matches, id)
     endfor
-
-    call ShowEslintErrorHighlighting()
 
     "populate local list
     if len(error_messages)

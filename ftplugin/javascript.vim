@@ -3,7 +3,7 @@
 "Author: David Wilhelm <dewilhelm@gmail.com>
 "
 " Only do this when not done yet for this buffer
-if exists("b:did_eslint_ftplugin") || g:nv_eslint_disabled
+if exists("b:did_eslint_ftplugin")
   finish
 endif
 
@@ -14,7 +14,7 @@ let b:error_messages = []
 let b:matches = []
 
 "default hi-group for lint errors
-highlight LintError      guibg=Red ctermbg=DarkRed guifg=NONE ctermfg=NONE
+highlight LintError      guibg=Red ctermbg=160 guifg=NONE ctermfg=NONE
 
 if !exists("g:nv_eslint_error_higroup")
     let g:nv_eslint_error_higroup = "LintError"
@@ -99,12 +99,19 @@ function! s:FixLintError(fix)
         "insert text after range pos
         let range_end = range_start
         let linetext = getline(range_start[0])
-        "echom "linetext:" . linetext
+
         let newtext = strpart(linetext, 0, range_start[1]) . fixtext . strpart(linetext, range_start[1])
         call setline(range_start[0], newtext)
     else
-        "TODO
         let range_end = s:GetPosFromOffset(range[1])
+        if range[1] > range[0]
+            "if on same line
+            if range_start[0] == range_end[0]
+                let linetext = getline(range_start[0])
+                let newtext = strpart(linetext, 0, range_start[1] - 1) . fixtext . strpart(linetext, range_end[1] - 1)
+                call setline(range_start[0], newtext)
+            endif
+        endif
     endif
 
 endfunction
@@ -116,11 +123,13 @@ function! s:FixLintErrors()
     if &ft == 'qf'
         lcl
     endif
+
     for msg in b:lint_errors
         if has_key(msg, 'fix')
             call s:FixLintError(msg.fix)
         endif
     endfor
+
     "run lint again
     call Eslint()
 
@@ -135,6 +144,7 @@ function! ShowEslintOutput(result)
     let filename = expand("%")
 
     let b:lint_errors = result.messages
+    "echom "num errors:" . len(b:lint_errors)
 
     call s:RemoveLintHighlighting()
 
@@ -150,7 +160,7 @@ function! ShowEslintOutput(result)
 
     "populate local list
     if len(error_messages)
-        lex error_messages
+        lex! error_messages
         lop
     else
         lex ""
@@ -164,8 +174,10 @@ function! s:AddAutoCmds()
     try
         augroup EslintAug
             "remove if added previously, but only in this buffer
-            au! InsertLeave,TextChanged <buffer> 
-            au! InsertLeave,TextChanged <buffer> :Eslint
+            "au! InsertLeave,TextChanged <buffer> 
+            "au! InsertLeave,TextChanged <buffer> :Eslint
+            au! BufWrite <buffer> 
+            au! BufWrite <buffer> :Eslint
         augroup END
 
     "if < vim 7.4 TextChanged events are not
@@ -174,8 +186,10 @@ function! s:AddAutoCmds()
 
             "use different events to trigger update in Vim < 7.4
             augroup EslintAug
-                au! InsertLeave <buffer> 
-                au! InsertLeave <buffer> :Eslint
+                "au! InsertLeave <buffer> 
+                "au! InsertLeave <buffer> :Eslint
+                au! BufWrite <buffer> 
+                au! BufWrite <buffer> :Eslint
             augroup END
 
     endtry

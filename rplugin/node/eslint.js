@@ -33,9 +33,20 @@ function getConfig(filename) {
     }
 }
 
+function createFatalErrorMessage(msg) {
+    return[{
+        fatal: true,
+        message: msg,
+        severity: 2,
+        line: 1,
+        column: 1
+    }]
+}
+
 function getLint(input_js) {
     
     var sourceType = isModule(input_js) ? 'module' : 'script';
+    var sourceCode, messages = [];
 
     try {
     
@@ -50,21 +61,22 @@ function getLint(input_js) {
             sourceType: sourceType,
             ecmaFeatures:  config.ecmaFeatures   
         });
+
     } catch (e) {
-        _debug('failed to parse:', e);
-        //return a fatal error
-        return[{
-            fatal: true,
-            message: e.message,
-            severity: 2,
-            line: e.lineNumber,
-            column: e.column
-        }]
+        return createFatalErrorMessage(e.message);
     }
 
-    var sourceCode = new SourceCode(input_js, ast);
-    var messages = linter.verify(sourceCode, config);
-            _debug('MESSAGES:',  messages);
+    try {
+        sourceCode = new SourceCode(input_js, ast);
+    } catch(e) {
+        return createFatalErrorMessage(e.message);
+    }
+
+    try {
+        messages = linter.verify(sourceCode, config);
+    } catch(e) {
+        return createFatalErrorMessage(e.message);
+    }
 
     return messages;
 }

@@ -13,6 +13,10 @@ let b:lint_errors = []
 let b:error_messages = []
 let b:matches = []
 
+if !exists("g:nv_eslint_auto_open_location_list")
+    let g:nv_eslint_auto_open_location_list = 0
+endif
+
 "default hi-group for lint errors
 highlight LintError      guibg=Red ctermbg=160 guifg=NONE ctermfg=NONE
 
@@ -161,7 +165,9 @@ function! ShowEslintOutput(result)
     "populate local list
     if len(error_messages)
         lex! error_messages
-        lop
+        if g:nv_eslint_auto_open_location_list
+            lop
+        endif
     else
         lex ""
         lcl

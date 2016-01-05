@@ -85,13 +85,6 @@ function! ESLint_GetBufferText()
 
 endfunction
  
-function! s:RemoveLintHighlighting()
-    for matchId in b:matches
-        call matchdelete(matchId)
-    endfor
-    let b:matches = []
-endfunction
-
 function! s:FixLintError(fix) 
     
     let range = a:fix.range
@@ -106,6 +99,9 @@ function! s:FixLintError(fix)
 
         let newtext = strpart(linetext, 0, range_start[1]) . fixtext . strpart(linetext, range_start[1])
         call setline(range_start[0], newtext)
+        "return offset as length of inserted text
+        return len(fixtext)
+
     else
         let range_end = s:GetPosFromOffset(range[1])
         if range[1] > range[0]
@@ -114,23 +110,31 @@ function! s:FixLintError(fix)
                 let linetext = getline(range_start[0])
                 let newtext = strpart(linetext, 0, range_start[1] - 1) . fixtext . strpart(linetext, range_end[1] - 1)
                 call setline(range_start[0], newtext)
+                "return offset as len(added_text) - len(removed_text)"
+                return len(fixtext) - (range[1] - range[0])
             endif
+            "else? multiline fixes"
         endif
     endif
+    return 0
 
 endfunction
 
 function! s:FixLintErrors()
 
-    "echom 'FixLintErrors'
     "jump back out of QuickFix window if in it
     if &ft == 'qf'
         lcl
     endif
+    let offset = 0
 
     for msg in b:lint_errors
         if has_key(msg, 'fix')
-            call s:FixLintError(msg.fix)
+            if len(offset)
+                let msg.fix.range[0] += offset
+                let msg.fix.range[1] += offset
+            endif
+            let offset += s:FixLintError(msg.fix)
         endif
     endfor
 
@@ -148,19 +152,30 @@ function! ShowEslintOutput(result)
     let filename = expand("%")
 
     let b:lint_errors = result.messages
-    "echom "num errors:" . len(b:lint_errors)
+    let num_errors = len(b:lint_errors)
 
-    call s:RemoveLintHighlighting()
+    let match_positions = []
 
     for msg in b:lint_errors
         let line = msg.line
         let col = msg.column
-
+        call add(match_positions, [line, col])
         call add(error_messages, filename . ":" . line . ":" . col . ":" . msg.message)
-
-        let id =  matchadd('LintError', '\%' . line . 'l\%' . col . 'c')
-        call add(b:matches, id)
     endfor
+
+    call clearmatches()
+
+    "use matchaddpos() to highlight matches
+    "this function can only take 8 positions,
+    "so group the lint_errors into groups of 8
+    let startIdx = 0
+    let sublist = match_positions[0:7]
+    while len(sublist) > 0
+        call matchaddpos('LintError', sublist)
+        let startIdx += 8
+        let endIdx = startIdx + 8
+        let sublist = match_positions[startIdx : endIdx]
+    endwhile
 
     "populate local list
     if len(error_messages)
@@ -182,8 +197,8 @@ function! s:AddAutoCmds()
             "remove if added previously, but only in this buffer
             "au! InsertLeave,TextChanged <buffer> 
             "au! InsertLeave,TextChanged <buffer> :Eslint
-            au! BufWrite <buffer> 
-            au! BufWrite <buffer> :Eslint
+            au! BufEnter,BufWrite <buffer> 
+            au! BufEnter,BufWrite <buffer> :Eslint
         augroup END
 
     "if < vim 7.4 TextChanged events are not
@@ -194,8 +209,8 @@ function! s:AddAutoCmds()
             augroup EslintAug
                 "au! InsertLeave <buffer> 
                 "au! InsertLeave <buffer> :Eslint
-                au! BufWrite <buffer> 
-                au! BufWrite <buffer> :Eslint
+                au! BufEnter,BufWrite <buffer> 
+                au! BufEnter,BufWrite <buffer> :Eslint
             augroup END
 
     endtry
